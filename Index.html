@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="am">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ኮከብ ቢንጎ · Kokab Bingo</title>
+<meta name="theme-color" content="#1E1B4B"/>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%23EC4899'/%3E%3Ccircle cx='16' cy='16' r='10' fill='%23fff'/%3E%3Cpath d='M16 9l1.8 3.7 4 .6-2.9 2.8.7 4-3.6-1.9-3.6 1.9.7-4L10.2 13.3l4-.6z' fill='%23F59E0B'/%3E%3C/svg%3E"/>
+<!-- Telegram Mini App SDK — must be the first script -->
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=DM+Sans:wght@400;500;700&family=Noto+Sans+Ethiopic:wght@400;600;700&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = { theme: { extend: {
+  colors: { ink:'#1E1B4B', ink2:'#282465', ink3:'#37327A',
+    pink:{DEFAULT:'#EC4899',dark:'#DB2777'}, gold:{DEFAULT:'#F59E0B',lite:'#FCD34D'},
+    teal:{DEFAULT:'#14B8A6',lite:'#5EEAD4'} },
+  fontFamily: { display:['"Baloo 2"','"Noto Sans Ethiopic"','cursive'],
+                sans:['"DM Sans"','"Noto Sans Ethiopic"','sans-serif'] },
+}}};
+</script>
+<style type="text/tailwindcss">
+@layer components{
+  .panel      { @apply bg-white/[0.05] border border-white/10 rounded-2xl shadow-[0_10px_30px_-12px_rgba(0,0,0,.5)] backdrop-blur-sm; }
+  .btn        { @apply inline-flex items-center justify-center gap-1.5 font-display font-bold rounded-xl transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-40 disabled:pointer-events-none; }
+  .btn-primary{ @apply bg-pink-dark hover:bg-pink text-white px-4 py-2.5 shadow-[0_8px_20px_-6px_rgba(236,72,153,.5)]; }
+  .btn-ghost  { @apply bg-white/5 hover:bg-white/10 border border-white/10 text-white px-4 py-2.5; }
+  .iconbtn    { @apply w-9 h-9 grid place-items-center rounded-xl bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 hover:text-white transition-colors shrink-0; }
+  .input      { @apply w-full bg-white/5 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm placeholder-white/30 focus:border-pink focus:outline-none transition-colors; }
+  .cell       { @apply relative aspect-square rounded-lg bg-[#FBFAFF] text-ink font-display font-extrabold grid place-items-center select-none;
+                font-size:clamp(.95rem,4.5vw,1.35rem); }
+  .free-cell  { @apply bg-ink3 text-white/80; }
+  .kicker     { @apply text-[11px] font-bold uppercase tracking-[0.25em] text-pink; }
+}
+html{color-scheme:dark}
+body{background:#1E1B4B;touch-action:manipulation;overscroll-behavior-y:contain;
+  background-image:radial-gradient(700px 400px at 85% -10%,rgba(236,72,153,.09),transparent 60%),
+                   radial-gradient(600px 380px at -10% 105%,rgba(20,184,166,.07),transparent 55%)}
+::selection{background:#EC4899;color:#fff}
+:focus-visible{outline:2px solid #F472B6;outline-offset:2px}
+@keyframes cage{to{transform:rotate(360deg)}}
+.cage-spin{animation:cage 16s linear infinite}
+.cage-rev{animation:cage 11s linear infinite reverse}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+.ball-bob{animation:bob 2.6s ease-in-out infinite}
+@keyframes ballIn{0%{transform:translateY(-26px) scale(.3);opacity:0}55%{transform:translateY(4px) scale(1.12);opacity:1}75%{transform:translateY(-3px) scale(.98)}100%{transform:none;opacity:1}}
+.ball-in{animation:ballIn .5s cubic-bezier(.2,.8,.3,1.35)}
+@keyframes daubIn{0%{transform:scale(0) rotate(-25deg)}60%{transform:scale(1.18) rotate(8deg)}100%{transform:scale(1) rotate(var(--rot,0deg))}}
+.splat{position:absolute;inset:7%;border-radius:46% 54% 42% 58%/55% 43% 62% 45%;
+  background:radial-gradient(circle at 35% 30%,#F472B6,#DB2777 75%);
+  box-shadow:inset -2px -3px 6px rgba(0,0,0,.28),0 2px 4px rgba(0,0,0,.25);
+  animation:daubIn .35s cubic-bezier(.2,.9,.3,1.3) both}
+@keyframes strikeIn{from{transform:rotate(var(--rot,0deg)) scaleX(0)}to{transform:rotate(var(--rot,0deg)) scaleX(1)}}
+.strike{position:absolute;left:10%;right:10%;top:50%;height:3px;border-radius:3px;background:#fff;
+  transform-origin:left center;animation:strikeIn .22s ease-out .12s both;z-index:2}
+@keyframes ringPulse{0%,100%{opacity:.95;transform:scale(1)}50%{opacity:.35;transform:scale(1.05)}}
+.ring{position:absolute;inset:0;border-radius:inherit;border:2.5px solid #F59E0B;animation:ringPulse 1.2s ease-in-out infinite;pointer-events:none}
+@keyframes winPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+.cell-win{background:#F59E0B!important;color:#422F06!important;animation:winPulse .7s ease-in-out infinite;z-index:2}
+@keyframes shakeX{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.shakeX{animation:shakeX .3s}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+.shimmer-text{background:linear-gradient(110deg,#F59E0B 30%,#FFE9AE 46%,#F59E0B 62%);background-size:200% 100%;
+  -webkit-background-clip:text;background-clip:text;color:transparent;animation:shimmer 3.2s linear infinite}
+@keyframes floaty{0%,100%{transform:translate3d(0,0,0) rotate(var(--r,0deg))}50%{transform:translate3d(var(--dx,10px),-16px,0) rotate(var(--r,0deg))}}
+.floaty{animation:floaty var(--dur,9s) ease-in-out infinite;animation-delay:var(--del,0s)}
+@keyframes ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.ticker-track{animation:ticker 38s linear infinite}
+@keyframes modalIn{from{transform:translateY(18px) scale(.96);opacity:0}to{transform:none;opacity:1}}
+.modal-in{animation:modalIn .28s cubic-bezier(.2,.8,.3,1.1)}
+@keyframes toastIn{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
+.toast-in{animation:toastIn .25s ease-out}
+@keyframes pulseDot{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.6);opacity:.5}}
+.pulse-dot{animation:pulseDot 1.6s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}}
+</style>
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+</head>
+<body class="bg-ink text-white font-sans antialiased">
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const {useState,useEffect,useRef,useMemo,useCallback,useContext,createContext} = React;
+
+/* ================================================================
+   1. SHARED MATH — cartela generation (MUST match worker.js exactly)
+      Same seed ⇒ cartela #7 is always the same card. The server
+      regenerates and verifies every card itself, so this local copy
+      is only used for previews.
+================================================================ */
+const CARTELA_SEED = 'kokab-2025-s1'; // keep in sync with wrangler.toml
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function hashStr(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function genCartela(no){
+  const rng=mulberry32(hashStr(CARTELA_SEED+':'+no));
+  const card=[];
+  for(let c=0;c<5;c++){                      // B:1-15  I:16-30  N:31-45  G:46-60  O:61-75
+    const pool=Array.from({length:15},(_,i)=>c*15+i+1);
+    for(let k=0;k<5;k++){const j=k+Math.floor(rng()*(15-k));const t=pool[k];pool[k]=pool[j];pool[j]=t;}
+    for(let r=0;r<5;r++)card[r*5+c]=pool[r];
+  }
+  return card;                               // index 12 = centre = FREE
+}
+
+/* ================================================================
+   2. AMHARIC — number words, column letters, speech
+================================================================ */
+const AM1=['','አንድ','ሁለት','ሶስት','አራት','አምስት','ስድስት','ሰባት','ስምንት','ዘጠኝ'];
+const AM10=['','አስር','ሃያ','ሰላሳ','አርባ','ሃምሳ','ስልሳ','ሰባ'];
+const amNum=n=>{ if(n<10)return AM1[n]; const t=(n/10)|0,o=n%10;
+  return t===1?'አስራ '+AM1[o]:AM10[t]+(o?' '+AM1[o]:''); };   // 20→ሃያ · 66→ስልሳ ስድስት · 75→ሰባ አምስት
+const AM_LET=['ብ','ኢ','ን','ጂ','ኦ'];                       // B I N G O in Amharic
+const COLS=[
+  {c:'#14B8A6',hi:'#5EEAD4',lo:'#0F766E'},
+  {c:'#EC4899',hi:'#F9A8D4',lo:'#BE185D'},
+  {c:'#8B5CF6',hi:'#C4B5FD',lo:'#6D28D9'},
+  {c:'#F59E0B',hi:'#FDE68A',lo:'#B45309'},
+  {c:'#38BDF8',hi:'#BAE6FD',lo:'#0369A1'},
+];
+const colOf=n=>Math.floor((n-1)/15);
+const fmt=n=>(n||0).toLocaleString('en-US');
+/* Speak the call if the device actually has an Amharic voice (most don't —
+   the big visual call is the primary channel; bundle recorded clips later if
+   you want guaranteed voice). */
+function speakAm(text){
+  try{
+    if(!('speechSynthesis' in window))return;
+    if(!speechSynthesis.getVoices().some(v=>(v.lang||'').toLowerCase().startsWith('am')))return;
+    const u=new SpeechSynthesisUtterance(text);u.lang='am-ET';u.rate=.95;
+    speechSynthesis.cancel();speechSynthesis.speak(u);
+  }catch(e){}
+}
+
+/* ================================================================
+   3. SOUND — tiny WebAudio synth
+================================================================ */
+const Sfx=(()=>{
+  let ctx=null,on=true;
+  const ac=()=>{try{if(!ctx)ctx=new (window.AudioContext||window.webkitAudioContext)();
+    if(ctx.state==='suspended')ctx.resume();return ctx;}catch(e){return null;}};
+  const env=(g,t,a,d,p)=>{g.gain.setValueAtTime(.0001,t);g.gain.linearRampToValueAtTime(p,t+a);
+    g.gain.exponentialRampToValueAtTime(.0001,t+a+d);};
+  function tone(f0,f1,dur,type='sine',peak=.18,when=0){if(!on)return;const c=ac();if(!c)return;
+    const t=c.currentTime+when,o=c.createOscillator(),g=c.createGain();
+    o.type=type;o.frequency.setValueAtTime(f0,t);
+    if(f1)o.frequency.exponentialRampToValueAtTime(f1,t+dur);
+    env(g,t,.004,dur,peak);o.connect(g).connect(c.destination);o.start(t);o.stop(t+dur+.05);}
+  function noise(dur,peak,fc,when=0){if(!on)return;const c=ac();if(!c)return;
+    const t=c.currentTime+when,n=c.createBufferSource(),
+    buf=c.createBuffer(1,Math.max(1,c.sampleRate*dur|0),c.sampleRate),d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+    n.buffer=buf;const f=c.createBiquadFilter();f.type='lowpass';
+    f.frequency.setValueAtTime(fc,t);f.frequency.exponentialRampToValueAtTime(Math.max(60,fc*.3),t+dur);
+    const g=c.createGain();env(g,t,.003,dur,peak);n.connect(f);f.connect(g);g.connect(c.destination);n.start(t);}
+  return{
+    set on(v){on=v;},get on(){return on;},resume(){ac();},
+    pop(){tone(520,180,.12,'sine',.24);noise(.05,.1,1400);},
+    splat(soft){noise(soft?.08:.12,soft?.07:.13,900);tone(220,90,.08,'triangle',soft?.05:.08);},
+    tick(){tone(900,null,.04,'square',.045);},
+    ping(){tone(880,660,.18,'sine',.1);},
+    fanfare(){[523.25,659.25,783.99,1046.5].forEach((f,i)=>tone(f,null,.22,'triangle',.15,i*.13));
+      tone(1318.5,null,.5,'sine',.09,.52);noise(.4,.05,3200,.52);},
+  };
+})();
+useEffect_dummy:; // (noop — keeps babel happy about top-level keyword ordering)
+
+/* ================================================================
+   4. TELEGRAM helpers + API layer
+================================================================ */
+const TG=()=>window.Telegram&&window.Telegram.WebApp;
+const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},
+          set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
+function myId(){const u=TG()&&TG().initDataUnsafe&&TG().initDataUnsafe.user;
+  return u?('tg'+u.id):('dev'+(ls.get('kb-dev-n')||'1001'));}
+const hap=(t='light')=>{try{TG().HapticFeedback.impactOccurred(t)}catch(e){}};
+const hapNotif=(t='success')=>{try{TG().HapticFeedback.notificationOccurred(t)}catch(e){}};
+const hdrs=extra=>({'x-init-data':(TG()&&TG().initData)||'',
+  'x-dev-user':'Dev Player#'+(ls.get('kb-dev-n')||'1001'),...(extra||{})});
+const api={
+  summary:()=>fetch('/api/summary',{headers:hdrs()}).then(r=>r.json()),
+  state:st=>fetch('/api/state?stake='+st,{headers:hdrs()}).then(r=>r.json()),
+  join:(stake,cartela)=>fetch('/api/join',{method:'POST',
+    headers:hdrs({'content-type':'application/json'}),body:JSON.stringify({stake,cartela})}).then(r=>r.json()),
+  deposit:()=>fetch('/api/deposit',{method:'POST',headers:hdrs()}).then(r=>r.json()),
+  withdraw:amt=>fetch('/api/withdraw',{method:'POST',
+    headers:hdrs({'content-type':'application/json'}),body:JSON.stringify({amount:amt})}).then(r=>r.json()),
+};
+function useTick(ms){const [,f]=useState(0);
+  useEffect(()=>{const t=setInterval(()=>f(x=>x+1),ms);return()=>clearInterval(t);},[ms]);}
+
+/* ================================================================
+   5. ICONS (inline SVG, no emoji)
+================================================================ */
+const ICONS={
+  coin:<><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/></>,
+  users:<><circle cx="9" cy="8.5" r="3.5"/><path d="M2.5 20c.7-3 3.3-4.5 6.5-4.5s5.8 1.5 6.5 4.5"/><path d="M16 5.5a3.5 3.5 0 0 1 0 6.6"/><path d="M17.5 15.6c2.2.5 3.6 1.9 4 4.4"/></>,
+  clock:<><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></>,
+  volume:<><path d="M11 5 6.5 9H3v6h3.5L11 19z"/><path d="M15 9a4.5 4.5 0 0 1 0 6"/><path d="M17.5 6.5a8 8 0 0 1 0 11"/></>,
+  volumeX:<><path d="M11 5 6.5 9H3v6h3.5L11 19z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></>,
+  x:<path d="M6 6l12 12M18 6 6 18"/>,
+  chevron:<path d="M6 9l6 6 6-6"/>,
+  check:<path d="M4.5 12.5l5 5L19.5 7"/>,
+  arrowLeft:<path d="M19 12H5M11.5 18.5 5 12l6.5-6.5"/>,
+  trophy:<><path d="M8 21h8M12 17.5V21M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4v.8a3.2 3.2 0 0 0 3.2 3.2M17 6h3v.8a3.2 3.2 0 0 1-3.2 3.2"/></>,
+  grid:<><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></>,
+  shuffle:<><path d="M3 7h4l10 10h4M21 17l-3-3m3 3-3 3M3 17h4l3-3M14 7h7M21 7l-3-3m3 3-3 3"/></>,
+  lock:<><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></>,
+  crown:<><path d="M2.8 18 2 6.5l5.5 4L12 3.5l4.5 7 5.5-4L21.2 18z"/><path d="M4 21h16"/></>,
+  info:<><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></>,
+  star:<path d="M12 3l2.7 5.8 6.3.7-4.7 4.2 1.3 6.2L12 16.8 6.4 19.9l1.3-6.2L3 9.5l6.3-.7z"/>,
+};
+const Icon=({n,size=18,className='',fill})=>(
+  <svg viewBox="0 0 24 24" width={size} height={size} fill={fill?'currentColor':'none'}
+    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+    className={className} aria-hidden="true">{ICONS[n]}</svg>);
+
+/* ================================================================
+   6. ATOMS — Ball, Machine, Modal, Chip, Confetti…
+================================================================ */
+function Ball({n,letter,icon,color,size=56,dim,className='',style={}}){
+  if(dim)return <div className={'rounded-full bg-white/[0.07] border border-white/10 grid place-items-center font-display font-bold text-white/35 '+className}
+    style={{width:size,height:size,fontSize:Math.max(9,size*.36),...style}}>{n}</div>;
+  const t=color||(letter!=null?{c:'#FDE68A',hi:'#FFFBEB',lo:'#D97706'}:icon?{c:'#F59E0B',hi:'#FDE68A',lo:'#B45309'}:COLS[colOf(n)]);
+  return <div role="img" aria-label={icon?'Lucky ball':letter!=null?'ኳስ '+letter:'ኳስ '+AM_LET[colOf(n)]+' '+n}
+    className={'relative rounded-full grid place-items-center shrink-0 '+className}
+    style={{width:size,height:size,
+      background:`radial-gradient(circle at 32% 26%, ${t.hi}, ${t.c} 52%, ${t.lo} 100%)`,
+      boxShadow:`0 ${Math.round(size/10)}px ${Math.round(size/5)}px rgba(0,0,0,.35), inset -${Math.round(size/22)}px -${Math.round(size/12)}px ${Math.round(size/8)}px rgba(0,0,0,.22), inset ${Math.round(size/16)}px ${Math.round(size/14)}px ${Math.round(size/7)}px rgba(255,255,255,.25)`,
+      ...style}}>
+    <div className="rounded-full grid place-items-center font-display font-extrabold text-ink"
+      style={{width:'74%',height:'74%',background:'radial-gradient(circle at 35% 30%, #ffffff, #EAE7F7)',
+        boxShadow:'inset 0 2px 4px rgba(30,27,75,.18)'}}>
+      {icon?<Icon n={icon} size={Math.round(size*.32)} className="text-gold"/>
+          :<span style={{fontSize:letter!=null?size*.3:(n>9?size*.3:size*.34),lineHeight:1}}>{letter??n}</span>}
+    </div>
+    <span aria-hidden="true" className="absolute rounded-full bg-white/80 blur-[1px]"
+      style={{width:Math.max(3,size*.07),height:Math.max(3,size*.07),left:'27%',top:'15%'}}/>
+  </div>;
+}
+function BallSlot({size=80}){
+  return <div aria-hidden="true" className="rounded-full border-2 border-dashed border-white/20 grid place-items-center shrink-0"
+    style={{width:size,height:size}}>
+    <span className="font-display font-extrabold text-white/25" style={{fontSize:size*.34}}>—</span></div>;
+}
+function Machine({size=88,spinning}){
+  const balls=[[22,24,3],[54,16,22],[70,48,41],[36,60,56],[12,52,64],[58,74,12]];
+  return <div className="relative shrink-0" style={{width:size,height:size}} aria-hidden="true">
+    <div className="absolute inset-0 rounded-full border-2 border-dashed border-white/20 cage-spin" style={{animationDuration:spinning?'4s':'16s'}}/>
+    <div className="absolute inset-[15%] rounded-full border border-dashed border-white/10 cage-rev" style={{animationDuration:spinning?'3s':'11s'}}/>
+    <div className="absolute inset-[30%] rounded-full" style={{background:'radial-gradient(circle at 40% 35%, rgba(255,255,255,.08), rgba(30,27,75,.5))'}}/>
+    {balls.map((b,k)=>(
+      <div key={k} className="absolute" style={{left:b[0]+'%',top:b[1]+'%'}}>
+        <div className="ball-bob" style={{animationDelay:(k*.45)+'s',animationDuration:(2.2+k*.35)+'s'}}>
+          <Ball n={b[2]} size={Math.max(10,Math.round(size*.16))}/>
+        </div>
+      </div>))}
+  </div>;
+}
+function Chip({children,tone='def',className=''}){
+  const tones={def:'bg-white/[0.06] border-white/10 text-white/70',
+    gold:'bg-gold/15 border-gold/30 text-gold-lite',
+    teal:'bg-teal/15 border-teal/30 text-teal-lite',
+    pink:'bg-pink/15 border-pink/40 text-pink'};
+  return <span className={'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold '+tones[tone]+' '+className}>{children}</span>;
+}
+function Modal({title,onClose,children}){
+  useEffect(()=>{ if(!onClose)return;
+    const k=e=>{if(e.key==='Escape')onClose();};
+    window.addEventListener('keydown',k);return()=>window.removeEventListener('keydown',k);
+  },[onClose]);
+  return <div className="fixed inset-0 z-[70] grid place-items-center p-4">
+    <div className="absolute inset-0 bg-ink/80 backdrop-blur-sm" onClick={onClose||undefined}/>
+    <div role="dialog" aria-modal="true" aria-label={title} className="panel relative w-full max-w-sm p-6 modal-in">
+      {onClose&&<button className="iconbtn absolute right-3 top-3 w-8 h-8" onClick={onClose} aria-label="Close"><Icon n="x" size={16}/></button>}
+      {children}
+    </div>
+  </div>;
+}
+function CountRing({n,total=45}){
+  const R=40,C=2*Math.PI*R,pct=Math.max(0,Math.min(1,n/total));
+  return <svg width="104" height="104" viewBox="0 0 104 104" role="img" aria-label={n+' ሰከንድ'}>
+    <circle cx="52" cy="52" r={R} fill="none" stroke="rgba(255,255,255,.1)" strokeWidth="8"/>
+    <circle cx="52" cy="52" r={R} fill="none" stroke="#F59E0B" strokeWidth="8" strokeLinecap="round"
+      strokeDasharray={C} strokeDashoffset={C*(1-pct)} transform="rotate(-90 52 52)"/>
+    <text x="52" y="54" textAnchor="middle" dominantBaseline="middle" fill="#fff"
+      style={{font:'700 40px "Baloo 2", cursive'}}>{n}</text>
+  </svg>;
+}
+function Confetti({fireKey}){
+  const ref=useRef(null);
+  useEffect(()=>{
+    if(!fireKey)return;
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+    const cv=ref.current;if(!cv)return;
+    const ctx=cv.getContext('2d'),W=cv.width=innerWidth,H=cv.height=innerHeight;
+    const colors=['#EC4899','#F59E0B','#14B8A6','#8B5CF6','#38BDF8','#FDE68A','#ffffff'];
+    const P=[];
+    const burst=(x,y,ang,spread,count,sp)=>{for(let i=0;i<count;i++){
+      const a=ang+(Math.random()-.5)*spread,v=sp*(.5+Math.random());
+      P.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,w:5+Math.random()*6,h:8+Math.random()*8,
+        rot:Math.random()*Math.PI,vr:(Math.random()-.5)*.3,c:colors[i%colors.length],
+        ph:Math.random()*Math.PI,ps:.15+Math.random()*.2,shape:Math.random()<.3});}};
+    burst(W/2,H*.42,-Math.PI/2,Math.PI*.9,110,11);
+    burst(0,H+10,-Math.PI/3,.7,70,15);burst(W,H+10,-Math.PI*2/3,.7,70,15);
+    let raf,t0=null,last=0;
+    const step=t=>{if(t0==null){t0=t;last=t;}const dt=Math.min(40,t-last)/16.7;last=t;
+      ctx.clearRect(0,0,W,H);
+      for(const p of P){p.vy+=.16*dt;p.vx*=Math.pow(.99,dt);p.vy*=Math.pow(.995,dt);
+        p.x+=p.vx*dt;p.y+=p.vy*dt;p.rot+=p.vr*dt;p.ph+=p.ps*dt;
+        ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.rot);ctx.fillStyle=p.c;
+        if(p.shape){ctx.beginPath();ctx.arc(0,0,p.w/2,0,7);ctx.fill();}
+        else{ctx.scale(1,Math.max(.15,Math.abs(Math.sin(p.ph))));ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);}
+        ctx.restore();}
+      for(let i=P.length-1;i>=0;i--)if(P[i].y>H+30)P.splice(i,1);
+      if(P.length&&t-t0<4500)raf=requestAnimationFrame(step);else ctx.clearRect(0,0,W,H);};
+    raf=requestAnimationFrame(step);
+    return()=>cancelAnimationFrame(raf);
+  },[fireKey]);
+  return <canvas ref={ref} className="fixed inset-0 z-[65] pointer-events-none" aria-hidden="true"/>;
+}
+function Toasts({toasts}){
+  return <div role="status" aria-live="polite"
+    className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[80] flex flex-col gap-2 items-center w-[92%] max-w-sm pointer-events-none">
+    {toasts.map(t=><div key={t.id} className="toast-in flex items-center gap-2.5 bg-ink2/95 border border-white/15 rounded-xl px-4 py-3 shadow-2xl">
+      <Icon n={t.icon} size={16} className={'shrink-0 '+((t.icon==='trophy'||t.icon==='coin')?'text-gold':t.icon==='x'?'text-pink':'text-teal-lite')}/>
+      <span className="text-sm font-medium text-white/90">{t.msg}</span>
+    </div>)}
+  </div>;
+}
+
+/* ================================================================
+   7. GAME MOLECULES — cartela card, caller, board, mini preview
+================================================================ */
+function Cartela({card,daubs,calledSet,winSet,onDaub,playing,shake}){
+  return <div className="panel p-2.5 sm:p-3">
+    <div className="grid grid-cols-5 gap-1.5 mb-1.5" aria-hidden="true">
+      {COLS.map((c,i)=><div key={i} className="rounded-lg py-1 text-center font-display font-bold text-base" style={{background:c.c}}>{AM_LET[i]}</div>)}
+    </div>
+    <div className="grid grid-cols-5 gap-1.5">
+      {card.map((n,i)=>{
+        if(i===12)return <div key={i} className="cell free-cell flex flex-col items-center justify-center gap-0.5" aria-label="Free space">
+          <Icon n="star" size={14} className="text-gold"/><span className="text-[9px] font-bold tracking-widest">FREE</span></div>;
+        const d=daubs[i],called=calledSet.has(n),win=winSet&&winSet.has(i);
+        return <button key={i} type="button" onClick={()=>onDaub&&onDaub(i)} disabled={!onDaub}
+          style={{'--rot':(((i*53)%40)-20)+'deg'}}
+          className={'cell active:scale-95 '+(win?'cell-win ':'')+(shake===i?'shakeX ':'')}
+          aria-label={AM_LET[colOf(n)]+' '+n+(d?' · ተደርቧል':called?' · ተጠርቷል':'')}
+          aria-pressed={d}>
+          <span className={'relative z-[1] '+(d&&!win?'text-white':'')}>{n}</span>
+          {d&&!win&&<><span className="splat"/><span className="strike"/></>}
+          {!d&&!win&&called&&playing&&<span className="ring"/>}
+        </button>;})}
+    </div>
+  </div>;
+}
+function MiniCard({card}){
+  return <div className="grid grid-cols-5 gap-[3px] p-1.5 rounded-lg bg-[#FBFAFF] shrink-0" aria-hidden="true">
+    {card.map((n,i)=>i===12?
+      <div key={i} className="w-[18px] h-[18px] rounded-[4px] bg-ink3 grid place-items-center"><Icon n="star" size={9} className="text-gold"/></div>:
+      <div key={i} className="w-[18px] h-[18px] rounded-[4px] grid place-items-center text-ink text-[8px] font-bold" style={{opacity:.85}}>{n}</div>)}
+  </div>;
+}
+function Caller({hall}){
+  const draws=hall?hall.draws:[];
+  const cur=draws[draws.length-1],prev=draws.slice(-5,-1).reverse();
+  return <section className="panel p-3">
+    <div className="flex items-center gap-3">
+      <Machine size={88} spinning={hall&&hall.phase==='playing'}/>
+      <div className="flex-1 text-center min-w-0">
+        {cur!=null?< <span/>:
+          null}
+      </div>
+    </div>
+  </section>;
+}
+/* The caller panel (written as its own proper component — see CallerPanel) */
+function CallerPanel({hall}){
+  const draws=hall?hall.draws:[];
+  const cur=draws[draws.length-1],prev=draws.slice(-5,-1).reverse();
+  const [boardOpen,setBoardOpen]=useState(false);
+  const set=new Set(draws);
+  return <section className="panel p-3">
+    <div className="flex items-center gap-3">
+      <Machine size={88} spinning={hall&&hall.phase==='playing'}/>
+      <div className="flex-1 text-center min-w-0">
+        {cur!=null?
+          <div key={draws.length} className="ball-in inline-block"><Ball n={cur} size={80}/></div>
+        : <BallSlot size={80}/>}
+        {cur!=null?
+          <div className="mt-1.5">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-6 h-6 rounded-md grid place-items-center font-display font-bold text-[13px]" style={{background:COLS[colOf(cur)].c}}>{AM_LET[colOf(cur)]}</span>
+              <span className="font-display font-bold text-lg leading-none">{cur}</span>
+            </span>
+            <p className="text-gold-lite font-bold text-sm mt-0.5">{amNum(cur)}</p>
+          </div>
+        : <p className="text-[10px] uppercase tracking-[0.25em] text-white/40 mt-2 font-semibold">እንጠብቃለን · waiting</p>}
+      </div>
+      <div className="flex flex-col gap-1 shrink-0">
+        {prev.map((n,k)=><div key={n} style={{opacity:1-k*.22}}><Ball n={n} size={34}/></div>)}
+      </div>
+    </div>
+    <div className="sr-only" aria-live="polite">{cur!=null?('ኳስ '+AM_LET[colOf(cur)]+' '+cur+' — '+amNum(cur)):''}</div>
+    <div className="flex items-center gap-2 mt-2.5 border-t border-white/10 pt-2">
+      <span className="text-[11px] text-white/45 font-semibold">ኳስ {draws.length}/75</span>
+      <span className="text-[11px] text-white/30">· ሙሉ ካርቴላ ያሸንፋል</span>
+      <button className="ml-auto text-[11px] font-bold text-pink flex items-center gap-1"
+        aria-expanded={boardOpen} onClick={()=>setBoardOpen(o=>!o)}>
+        ሰሌዳ · Board <Icon n="chevron" size={12} className={'transition-transform '+(boardOpen?'rotate-180':'')}/>
+      </button>
+    </div>
+    <div className={'grid transition-[grid-template-rows] duration-300 '+(boardOpen?'grid-rows-[1fr]':'grid-rows-[0fr]')}>
+      <div className="overflow-hidden">
+        <div className="space-y-1.5 pt-2">
+          {COLS.map((c,ci)=>(
+            <div key={ci} className="flex items-center gap-1.5">
+              <span className="w-5 h-5 rounded-md grid place-items-center text-[11px] font-display font-bold shrink-0" style={{background:c.c}}>{AM_LET[ci]}</span>
+              <div className="grid flex-1 gap-[3px]" style={{gridTemplateColumns:'repeat(15,1fr)'}}>
+                {Array.from({length:15},(_,k)=>{const n=ci*15+k+1,on=set.has(n);
+                  return <div key={n} aria-hidden="true"
+                    className={'h-4 rounded text-center text-[9px] font-bold leading-4 '+(on?'text-white':'text-white/25')}
+                    style={{background:on?c.c:'rgba(255,255,255,.05)'}}>{n}</div>;})}
+              </div>
+            </div>))}
+        </div>
+      </div>
+    </div>
+  </section>;
+}
+function AutoSwitch({auto,setAuto}){
+  return <div className="flex items-center gap-2">
+    <span className="text-[11px] font-semibold text-white/60">ራስ-ሰር</span>
+    <button type="button" role="switch" aria-checked={auto} aria-label="Auto-daub"
+      onClick={()=>setAuto(!auto)} className={'relative w-11 h-6 rounded-full transition-colors '+(auto?'bg-teal':'bg-white/15')}>
+      <span className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
+        style={{transform:auto?'translateX(20px)':'translateX(0)'}}/>
+    </button>
+  </div>;
+}
+
+/* ================================================================
+   8. APP CONTEXT
+================================================================ */
+const AppCtx=createContext(null);
+const useApp=()=>useContext(AppCtx);
+
+/* ================================================================
+   9. SCREENS
+================================================================ */
+function HomeScreen(){
+  const {sum,go,setStakeAndPick,openDeposit,openWithdraw,sound,toggleSound}=useApp();
+  useTick(1000);
+  const off=sum?(sum.serverNow-Date.now()):0;
+  const secs=h=>h&&h.phase==='countdown'?Math.max(0,Math.ceil((h.startAt-(Date.now()+off))/1000)):null;
+  const floats=[{n:12,s:30,x:76,y:6,d:9,dx:12,r:-8},{n:44,s:22,x:88,y:52,d:8,dx:-10,r:6},{n:7,s:24,x:4,y:58,d:11,dx:10,r:10}];
+  const hOf=st=>sum&&sum.halls?sum.halls[st]:null;
+  return <>
+    <header className="relative pt-6 pb-5 overflow-hidden">
+      <div className="absolute inset-0 pointer-events-none">
+        {floats.map((f,k)=><div key={k} className="absolute" style={{left:f.x+'%',top:f.y+'%'}}>
+          <div className="floaty opacity-40" style={{'--dur':f.d+'s','--del':(-k*2)+'s','--dx':f.dx+'px','--r':f.r+'deg'}}><Ball n={f.n} size={f.s}/></div>
+        </div>)}
+      </div>
+      <div className="relative flex items-center gap-3">
+        <Ball icon="star" size={52}/>
+        <div className="flex-1 min-w-0">
+          <h1 className="font-display font-extrabold text-2xl leading-none">ኮከብ ቢንጎ</h1>
+          <p className="text-white/50 text-xs mt-1">Kokab Bingo · ካርቴላ ቢንጎ በቴሌግራም</p>
+        </div>
+        <button className="iconbtn" onClick={toggleSound} aria-label={sound?'Mute':'Unmute'}><Icon n={sound?'volume':'volumeX'}/></button>
+      </div>
+    </header>
+
+    {/* wallet */}
+    <div className="panel p-4 relative overflow-hidden">
+      <div className="absolute -right-8 -top-8 w-36 h-36 rounded-full border-2 border-dashed border-gold/25 cage-spin" style={{animationDuration:'30s'}}/>
+      <div className="relative flex items-center gap-2">
+        <div className="flex-1">
+          <p className="text-[10px] uppercase tracking-widest text-white/40 font-bold">ቀሪ ሂሳብ · Balance</p>
+          <p className="font-display font-extrabold text-3xl shimmer-text leading-tight">
+            {sum?fmt(sum.balance):'—'} <span className="text-base">ብር</span></p>
+        </div>
+        <button className="btn btn-primary text-xs px-3 py-2" onClick={openDeposit}><Icon n="coin" size={14}/> አስገባ</button>
+        <button className="btn btn-ghost text-xs px-3 py-2" onClick={openWithdraw}>አውጣ</button>
+      </div>
+      {sum&&sum.demo&&<p className="relative text-[10px] text-white/35 mt-2">የሙከራ ሁኔታ · Demo credits — no real money moves yet</p>}
+    </div>
+
+    {/* stake choice — the only two bets in the game */}
+    <p className="kicker mt-6">ጨዋታ · Play</p>
+    <h2 className="font-display font-bold text-xl mt-1">በስንት ብር ትጫወታለህ? <span className="text-white/40 text-sm font-sans font-medium">· pick your table</span></h2>
+    <div className="grid grid-cols-2 gap-3 mt-3">
+      {[10,20].map(st=>{
+        const h=hOf(st),ph=h?h.phase:'lobby',s=secs(h);
+        return <button key={st} onClick={()=>setStakeAndPick(st)}
+          className="panel p-4 text-left hover:-translate-y-1 hover:border-pink/40 transition-all relative">
+          {h&&h.my&&<span className="absolute -top-2 left-3 bg-pink-dark text-white text-[9px] font-display font-bold rounded-full px-2 py-0.5">አንተ በዙር ውስጥ ነህ · You're in</span>}
+          <div className="flex items-baseline gap-1.5">
+            <span className="font-display font-extrabold text-4xl">{st}</span>
+            <span className="font-display font-bold text-white/60">ብር</span>
+          </div>
+          <p className="text-[11px] text-white/45 mt-0.5">{st===10?'ትንሽ ጠረጴዛ':'ትልቅ ጠረጴዛ'} · {st===10?'Small':'Big'} table</p>
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            {ph==='playing'?<Chip tone="pink"><span className="w-1.5 h-1.5 rounded-full bg-pink pulse-dot"/>በሂወት · Live</Chip>
+              :ph==='countdown'?<Chip tone="gold"><Icon n="clock" size={11}/>ይጀምራል በ {s}s</Chip>
+              :ph==='ended'?<Chip tone="gold"><Icon n="trophy" size={11}/>አሸናፊ ወጥቷል</Chip>
+              :<Chip tone="teal">ክፍት · Open</Chip>}
+            <Chip><Icon n="users" size={11}/>{h?h.players:0}</Chip>
+          </div>
+          <p className="mt-2 text-[11px] text-white/45">ሽልማት <span className="text-gold-lite font-bold">{fmt(h?h.pot:0)} ብር</span></p>
+          <span className="mt-2 inline-flex items-center gap-1 text-pink text-xs font-bold">ተጫወት · Play <Icon n="chevron" size={12} className="-rotate-90"/></span>
+        </button>;})}
+    </div>
+
+    {/* recent winners ticker */}
+    <div className="panel mt-4 overflow-hidden flex items-center gap-3 py-2.5">
+      <span className="shrink-0 pl-3 text-[10px] font-bold uppercase tracking-widest text-gold-lite flex items-center gap-1.5">
+        <span className="w-1.5 h-1.5 rounded-full bg-gold pulse-dot"/>አሸናፊዎች</span>
+      <div className="overflow-hidden flex-1">
+        {sum&&sum.recent&&sum.recent.length?
+          <div className="ticker-track flex gap-6 w-max">
+            {[...sum.recent,...sum.recent].map((w,i)=>(
+              <span key={i} className="flex items-center gap-1.5 text-xs shrink-0">
+                <Ball n={(hashStr(w.name)%75)+1} size={20}/>
+                <span className="text-white/60">{w.name}</span>
+                <span className="text-gold-lite font-bold">+{fmt(w.amount)} ብር</span>
+                <span className="text-white/30">{w.stake} ብር ጠረጴዛ</span>
+              </span>))}
+          </div>
+        : <span className="text-xs text-white/35">የመጀመሪያዎቹ አሸናፊዎች እዚህ ይታያሉ · first winners land here</span>}
+      </div>
+    </div>
+
+    {/* 3-step how it works */}
+    <div className="grid grid-cols-3 gap-2 mt-4">
+      {[['coin','ገንዘብ ምረጥ','Pick 10 or 20 ብር'],
+        ['grid','ካርቴላ ውሰድ','Grab one of 400'],
+        ['trophy','ሙሉ ካርቴላ','Full house wins']].map(([ic,t,en],i)=>(
+        <div key={i} className="panel p-3 text-center">
+          <span className="w-8 h-8 rounded-xl bg-pink/15 text-pink grid place-items-center mx-auto"><Icon n={ic} size={16}/></span>
+          <p className="text-[11px] font-bold mt-1.5 leading-tight">{t}</p>
+          <p className="text-[9px] text-white/40 mt-0.5">{en}</p>
+        </div>))}
+    </div>
+
+    <p className="text-center text-[10px] text-white/30 mt-6 leading-relaxed">
+      ኮከብ ቢንጎ · Kokab Bingo — 18+ · በኃላፊነት ተጫወት · Play responsibly<br/>
+      Fair draws · server-verified wins · one cartela per player per round
+    </p>
+  </>;
+}
+
+function PickScreen({stake}){
+  const {sum,refresh,toast,go,isTg,openDeposit}=useApp();
+  const [hall,setHall]=useState(null);
+  const [sel,setSel]=useState(null);
+  const [busy,setBusy]=useState(false);
+  const off=useRef(0),lastSec=useRef(-1),firstSync=useRef(true);
+  useTick(500);
+  useEffect(()=>{ let stop=false;
+    (async()=>{ while(!stop){
+      const s=await api.state(stake).catch(()=>null);
+      if(stop)break;
+      if(s&&s.ok){
+        off.current=s.serverNow-Date.now(); setHall(s);
+        if(firstSync.current)firstSync.current=false;
+        else if(s.phase==='countdown'){
+          const sec=Math.max(0,Math.ceil((s.startAt-(Date.now()+off.current))/1000));
+          if(sec!==lastSec.current&&sec<=5&&sec>0)Sfx.tick();
+          lastSec.current=sec;
+        }
+      }
+      await new Promise(r=>setTimeout(r,2500));
+    }})();
+    return()=>{stop=true;};
+  },[stake]);
+
+  const taken=new Set(hall?hall.taken:[]);
+  const my=hall&&hall.my;
+  const phase=hall?hall.phase:'lobby';
+  const round=hall?hall.round:1;
+  const bal=sum?sum.balance:0;
+  const freeN=400-taken.size;
+  const secs=phase==='countdown'?Math.max(0,Math.ceil((hall.startAt-(Date.now()+off.current))/1000)):null;
+
+  async function join(cartela){
+    setBusy(true);
+    const r=await api.join(stake,cartela).catch(()=>null);
+    setBusy(false);
+    if(r&&r.ok){ Sfx.ping(); hap('medium'); refresh(); firstSync.current=true; go('game'); return; }
+    if(!r){ toast('አውት ችግር · connection hiccup — try again','x'); return; }
+    if(r.error==='CARTELA_TAKEN'){ toast('ካርቴላ '+cartela+' ተይዟል! · someone grabbed it first','x'); setSel(null); }
+    else if(r.error==='INSUFFICIENT_FUNDS'){ openDeposit(); }
+    else if(r.error==='SALES_CLOSED'){ toast('ሽያጩ ተዘጋል · sales closed for this round','clock'); }
+    else if(r.error==='ALREADY_IN'){ go('game'); }
+    else toast('አልተሳካም · try again','x');
+  }
+
+  return <>
+    <div className="flex items-center gap-2 pt-5 pb-3">
+      {!isTg&&<button className="iconbtn" onClick={()=>go('home')} aria-label="Back"><Icon n="arrowLeft"/></button>}
+      <Ball n={stake===10?7:41} color={stake===10?COLS[0]:COLS[3]} size={36}/>
+      <div className="flex-1 min-w-0">
+        <h1 className="font-display font-bold text-lg leading-none">{stake} ብር ጠረጴዛ</h1>
+        <p className="text-[11px] text-white/50 mt-0.5">ካርቴላ ምረጥ · pick your cartela · ዙር {round}</p>
+      </div>
+      {secs!=null&&<Chip tone="gold"><Icon n="clock" size={11}/>ይጀምራል በ {secs}s</Chip>}
+      <div className="text-right">
+        <p className="text-[9px] uppercase tracking-widest text-white/40 font-bold leading-none">ሽልማት</p>
+        <p className="font-display font-extrabold text-base shimmer-text leading-tight">{fmt(hall?hall.pot:0)} ብር</p>
+      </div>
+      <Chip><Icon n="users" size={11}/>{hall?hall.players:0}</Chip>
+    </div>
+
+    {/* low balance warning */}
+    {bal<stake&&!my&&
+      <div className="panel p-3 flex items-center gap-2 border-gold/30 mb-3">
+        <Icon n="info" className="text-gold shrink-0" size={16}/>
+        <p className="text-xs flex-1">በቂ ገንዘብ የለህም — {fmt(bal)} ብር ብቻ ነው · top up to play</p>
+        <button className="btn btn-ghost text-xs px-3 py-1.5 shrink-0" onClick={openDeposit}>አስገባ</button>
+      </div>}
+
+    {/* already holding a cartela this round */}
+    {my?
+      <div className="panel p-4 flex items-center gap-3 border-pink/30">
+        <Ball n={my.cartela} size={44}/>
+        <div className="flex-1 min-w-0">
+          <p className="font-display font-bold leading-tight">ካርቴላ #{my.cartela} አለህ</p>
+          <p className="text-xs text-white/50 mt-0.5">You're in this round · {phase==='countdown'?'ዙሩ እየተዘጋጀ ነው':'ጨዋታ ላይ'}</p>
+        </div>
+        <button className="btn btn-primary text-xs px-4 py-2 shrink-0" onClick={()=>go('game')}>ወደ ጨዋታ</button>
+      </div>
+    :(phase==='playing'||phase==='ended')?
+      <div className="panel p-6 text-center">
+        <Icon n="lock" size={26} className="text-gold mx-auto"/>
+        <p className="font-display font-bold text-lg mt-2">ሽያጩ ተዘጋል · Sales closed</p>
+        <p className="text-sm text-white/50 mt-1">ዙር {round} እየተጫወተ ነው — ቀጣዩ ዙር ካርቴላ ሲከፈት ይደርሳል።</p>
+        <button className="btn btn-ghost text-sm mt-4" onClick={()=>go('game')}>ጨዋታውን ተመልከት · Watch live</button>
+      </div>
+    :<>
+      {/* sales open: the 400-cartela board */}
+      <div className="flex items-center gap-2 mb-3">
+        <p className="text-xs text-white/50 flex-1">
+          ነጣ <span className="text-white/80 font-bold">{freeN}</span> የተወሰዱ <span className="text-white/60">{taken.size}</span>
+        </p>
+        <button className="btn btn-ghost text-xs px-3 py-1.5" disabled={busy} onClick={()=>join('auto')}>
+          <Icon n="shuffle" size={13}/> በራስ-ሰር ምረጥ
+        </button>
+      </div>
+      <div className="grid grid-cols-8 gap-1.5" role="group" aria-label="ካርቴላ ምረጥ · choose your cartela">
+        {Array.from({length:400},(_,i)=>i+1).map(n=>{
+          const t=taken.has(n);
+          return <button key={n} disabled={t||busy} onClick={()=>{setSel(n);hap('selection')&&0;hap('light');}}
+            className={'aspect-square rounded-lg grid place-items-center font-display font-bold text-[13px] relative transition-all '
+              +(t?'bg-white/[0.04] text-white/25':'bg-white/[0.08] text-white/85 hover:bg-white/[0.14] active:scale-95')
+              +(sel===n&&!t?' ring-2 ring-gold':'')}
+            aria-label={'ካርቴላ '+n+(t?' · የተወሰደ':'')}>
+            {n}
+            {t&&<Icon n="check" size={9} className="absolute bottom-0.5 right-0.5 text-white/30"/>}
+          </button>;})}
+      </div>
+      <p className="text-[10px] text-white/30 text-center mt-3">
+        እያንዳንዱ ካርቴላ በዙሩ ውስጥ ለአንድ ተጫዋች ብቻ ነው — በሌላ ተጫዋች ከያዘው መውሰድ አይቻልም።<br/>
+        Each cartela belongs to one player per round — exactly like the paper cards.
+      </p>
+    </>}
+
+    {/* sticky preview + take bar */}
+    {sel&&!taken.has(sel)&&!my&&phase!=='playing'&&phase!=='ended'&&
+      <div className="sticky bottom-3 z-30 mt-3">
+        <div className="panel !bg-ink2/95 p-3 flex items-center gap-3 shadow-2xl">
+          <MiniCard card={genCartela(sel)}/>
+          <div className="flex-1 min-w-0">
+            <p className="font-display font-bold leading-tight">ካርቴላ #{sel}</p>
+            <p className="text-[11px] text-white/45">This exact card · {fmt(stake)} ብር</p>
+            <p className="text-[11px] text-white/35">ካርቴላው በኋላ {fmt(Math.max(0,bal-stake))} ብር ይቀራል</p>
+          </div>
+          <button className="btn btn-primary text-sm px-4 shrink-0" disabled={busy} onClick={()=>join(sel)}>ውሰድ · Take</button>
+          <button className="iconbtn w-8 h-8 shrink-0" onClick={()=>setSel(null)} aria-label="Dismiss"><Icon n="x" size={14}/></button>
+        </div>
+      </div>}
+  </>;
+}
+
+function GameScreen({stake}){
+  const {refresh,toast,go,isTg,sound,toggleSound}=useApp();
+  const [hall,setHall]=useState(null);
+  const [daubs,setDaubs]=useState(()=>Array.from({length:25},(_,i)=>i===12));
+  const [auto,setAuto]=useState(false);
+  const [winSet,setWinSet]=useState(null);
+  const [shake,setShake]=useState(-1);
+  const [burst,setBurst]=useState(0);
+  const off=useRef(0),seen=useRef(0),firstSync=useRef(true),celebrated=useRef(0),lastPhase=useRef(''),wasIn=useRef(false);
+  useTick(500);
+
+  /* poll the hall — fast while playing, relaxed otherwise */
+  useEffect(()=>{ let stop=false;
+    (async()=>{ while(!stop){
+      const s=await api.state(stake).catch(()=>null);
+      if(stop)break;
+      if(s&&s.ok){
+        off.current=s.serverNow-Date.now();
+        setHall(s);
+        if(s.my)wasIn.current=true;
+        const dlen=(s.draws||[]).length;
+        if(firstSync.current){seen.current=dlen;firstSync.current=false;}
+        else if(dlen>seen.current&&s.phase==='playing'){
+          seen.current=dlen; Sfx.pop(); hap('medium');
+          const b=s.draws[dlen-1];
+          if(Sfx.on)speakAm(AM_LET[colOf(b)]+' '+amNum(b));   // "ብ አስራ አራት"
+        } else seen.current=dlen;
+        if(s.winner&&s.winner.round===s.round&&celebrated.current!==s.round){
+          celebrated.current=s.round;
+          const iWon=s.winner.winners.some(w=>w.userId===myId());
+          if(iWon){setBurst(x=>x+1);Sfx.fanfare();hapNotif('success');setWinSet(new Set(Array.from({length:25},(_,i)=>i)));}
+          else{Sfx.ping();hap('light');}
+          refresh();
+        }
+        if(lastPhase.current==='ended'&&s.phase==='lobby'&&wasIn.current){
+          wasIn.current=false; firstSync.current=true; refresh(); go('pick');
+        }
+        lastPhase.current=s.phase;
+      }
+      await new Promise(r=>setTimeout(r,(s&&s.phase==='playing')?1200:2500));
+    }})();
+    return()=>{stop=true;};
+  },[stake]);
+
+  /* ask Telegram before closing mid-round */
+  useEffect(()=>{ try{
+    const tg=TG();
+    if(hall&&hall.my&&(hall.phase==='playing'||hall.phase==='countdown'))
+      tg&&tg.enableClosingConfirmation&&tg.enableClosingConfirmation();
+    else tg&&tg.disableClosingConfirmation&&tg.disableClosingConfirmation();
+  }catch(e){} },[hall&&hall.phase,hall&&!!hall.my]);
+
+  const card=hall&&hall.my?hall.my.card:null;
+  const calledSet=useMemo(()=>new Set(hall?hall.draws:[]),[hall]);
+  const phase=hall?hall.phase:'lobby';
+  const cur=hall&&hall.draws.length?hall.draws[hall.draws.length-1]:null;
+  const iWon=hall&&hall.winner&&hall.winner.round===hall.round&&hall.winner.winners.some(w=>w.userId===myId());
+
+  /* fresh card state whenever a new round or new cartela begins */
+  const rk=hall?(hall.round+'-'+(hall.my?hall.my.cartela:'x')):'';
+  useEffect(()=>{ setDaubs(Array.from({length:25},(_,i)=>i===12)); setWinSet(null); },[rk]);
+
+  /* auto-daub trails each call by a beat (cosmetic — the server calls wins) */
+  useEffect(()=>{ if(!auto||!card||phase!=='playing')return;
+    const t=setTimeout(()=>{
+      setDaubs(ds=>{let ch=false;
+        const nd=ds.map((d,i)=>{if(!d&&i!==12&&calledSet.has(card[i])){ch=true;return true;}return d;});
+        if(ch)Sfx.splat(true); return ch?nd:ds;});
+    },350);
+    return()=>clearTimeout(t);
+  },[auto,card,phase,hall&&hall.draws&&hall.draws.length]);
+
+  /* manual daub — only numbers already called may be splatted */
+  const onDaub=i=>{
+    if(phase!=='playing'||!card||i===12||daubs[i])return;
+    if(!calledSet.has(card[i])){setShake(i);setTimeout(()=>setShake(-1),350);return;}
+    setDaubs(ds=>{const nd=[...ds];nd[i]=true;return nd;});
+    Sfx.splat(); hap('light');
+  };
+
+  const secs=phase==='countdown'&&hall?Math.max(0,Math.ceil((hall.startAt-(Date.now()+off.current))/1000)):0;
+
+  if(!hall)return <p className="text-center text-white/40 py-20 text-sm">እየተጫነ… · Loading…</p>;
+
+  return <>
+    <Confetti fireKey={burst}/>
+    {/* info bar */}
+    <div className="flex items-center gap-2 pt-5 pb-3">
+      {!isTg&&<button className="iconbtn" onClick={()=>go('pick')} aria-label="Back"><Icon n="arrowLeft"/></button>}
+      <Chip tone="pink">{stake} ብር</Chip>
+      <Chip>ዙር {hall.round}</Chip>
+      <div className="flex-1"/>
+      <div className="text-right">
+        <p className="text-[9px] uppercase tracking-widest text-white/40 font-bold leading-none">ሽልማት · Pot</p>
+        <p className="font-display font-extrabold text-lg shimmer-text leading-tight">{fmt(hall.pot)} ብር</p>
+      </div>
+      <Chip><Icon n="users" size={11}/>{hall.players}</Chip>
+      <button className="iconbtn" onClick={toggleSound} aria-label={sound?'Mute':'Unmute'}><Icon n={sound?'volume':'volumeX'}/></button>
+    </div>
+
+    <CallerPanel hall={hall}/>
+
+    {/* my cartela — or the spectator panel */}
+    {hall.my? <>
+      <div className="flex items-center gap-2 mt-4 mb-2 flex-wrap">
+        <Chip tone="gold"><Icon n="grid" size={11}/>ካርቴላ #{hall.my.cartela}</Chip>
+        <Chip tone="teal">ሙሉ ካርቴላ · Full house</Chip>
+        <div className="flex-1"/>
+        <AutoSwitch auto={auto} setAuto={setAuto}/>
+      </div>
+      <div className="relative">
+        <Cartela card={hall.my.card} daubs={daubs} calledSet={calledSet} winSet={winSet}
+          onDaub={onDaub} playing={phase==='playing'} shake={shake}/>
+        {phase==='countdown'&&(
+          <div className="absolute inset-0 z-10 rounded-2xl bg-ink/75 backdrop-blur-[2px] grid place-items-center">
+            <div className="text-center">
+              <CountRing n={secs} total={45}/>
+              <p className="font-display font-bold text-lg mt-3">ዙሩ ይጀምራል…</p>
+              <p className="text-xs text-white/50 mt-1">{hall.players} ተጫዋች · ሽልማት {fmt(hall.pot)} ብር</p>
+            </div>
+          </div>)}
+      </div>
+      <p className="text-center text-[10px] text-white/35 mt-2">
+        ወርቃማ ቀለበት = የተጠራ ቁጥር · gold ring = called, tap to splat — ስርዓቱ ቢንጎህን ራሱ ይጮሃል።
+      </p>
+    </>:(
+      <div className="panel p-6 text-center mt-4">
+        <Ball icon="star" size={44} className="mx-auto"/>
+        <p className="font-display font-bold text-lg mt-2">{phase==='lobby'?'ዙሩ አልጀመረም':'በዚህ ዙር ካርቴላ የለህም'}</p>
+        <p className="text-sm text-white/50 mt-1">
+          {phase==='lobby'?'ካርቴላ ውሰደህ ወደ ጨዋታ ግባ':'No cartela this round — sales open for the next one'}</p>
+        {phase==='lobby'
+          ?<button className="btn btn-primary text-sm mt-4" onClick={()=>go('pick')}>ካርቴላ ውሰድ · Take one</button>
+          :<button className="btn btn-ghost text-sm mt-4" onClick={()=>go('home')}>ወደ መነሻ · Home</button>}
+      </div>)}
+
+    {/* winner overlay */}
+    {phase==='ended'&&hall.winner&&(
+      <Modal title={iWon?'BINGO':'Winner'}>
+        {iWon?(
+          <div className="text-center space-y-2 pt-2">
+            <div className="flex justify-center gap-1">
+              {'BINGO'.split('').map((ch,i)=>(
+                <span key={i} className="font-display font-extrabold text-4xl inline-block"
+                  style={{color:COLS[i].c,transform:`rotate(${(i-2)*4}deg)`}}>{ch}</span>))}
+            </div>
+            <p className="text-white/60 text-sm">ሙሉ ካርቴላ በ{hall.winner.balls} ኳስ · full house in {hall.winner.balls} balls!</p>
+            <p className="font-display font-extrabold text-5xl shimmer-text">+{fmt(hall.winner.amountEach)} ብር</p>
+            <p className="text-[11px] text-white/40">ካርቴላ #{hall.winner.winners.map(w=>w.cartela).join(' & ')} · ገንዘብ ወደ ሂሳብህ ገብቷል</p>
+            <button className="btn btn-primary mt-2" onClick={()=>{firstSync.current=true;go('pick');}}>ቀጣይ ዙር · Next round</button>
+          </div>
+        ):(
+          <div className="text-center space-y-2 pt-2">
+            <Icon n="crown" size={34} className="text-gold mx-auto"/>
+            <p className="font-display font-bold text-xl">{hall.winner.winners.map(w=>w.name).join(' & ')} አሸነፈ!</p>
+            <p className="text-white/55 text-sm">took the pot · ካርቴላ #{hall.winner.winners.map(w=>w.cartela).join(' & ')}</p>
+            <p className="font-display font-extrabold text-3xl text-gold-lite">+{fmt(hall.winner.amountEach)} ብር</p>
+            <p className="text-xs text-white/40">በ{hall.winner.balls} ኳስ · full house</p>
+            <button className="btn btn-ghost mt-2" onClick={()=>go('home')}>ተመለስ · OK</button>
+          </div>
+        )}
+      </Modal>)}
+  </>;
+}
+
+/* ================================================================
+   10. MODALS — deposit / withdraw
+================================================================ */
+function DepositModal({onClose}){
+  const {sum,refresh,toast}=useApp();
+  const [busy,setBusy]=useState(false);
+  const demo=sum&&sum.demo;
+  return <Modal title="ገንዘብ ማስገባት · Deposit" onClose={onClose}>
+    <div className="text-center">
+      <Ball icon="coin" size={64} className="mx-auto"/>
+      {demo?<>
+        <p className="font-display font-bold text-lg mt-3">የሙከራ ሙላት · Demo top-up</p>
+        <p className="text-sm text-white/55 mt-1">Demo mode is on — take 500 ብር and test the tables.</p>
+        <button className="btn btn-primary w-full mt-4" disabled={busy} onClick={async()=>{
+          setBusy(true); const r=await api.deposit().catch(()=>null); setBusy(false);
+          if(r&&r.ok){refresh();toast('+500 ብር ተጨመረ · balance topped up','coin');onClose();}
+          else toast('አልተሳካም · deposit failed','x');
+        }}><Icon n="coin" size={15}/> +500 ብር</button>
+      </>:<>
+        <p className="font-display font-bold text-lg mt-3">Telebirr · Chapa</p>
+        <p className="text-sm text-white/55 mt-1 leading-relaxed">
+          Deposits arrive via Telebirr or Chapa. Until the payment webhook is wired on the server, send your top-up to the operator and it will be confirmed manually — ping the admin in the group.</p>
+        <p className="text-[11px] text-white/35 mt-3">Operator: wire <span className="text-gold-lite">/api/payment-webhook</span> for instant automatic credits.</p>
+      </>}
+    </div>
+  </Modal>;
+}
+function WithdrawModal({onClose}){
+  const {sum,refresh,toast}=useApp();
+  const [amt,setAmt]=useState(''),[busy,setBusy]=useState(false);
+  const bal=sum?sum.balance:0;
+  const submit=async()=>{
+    const n=parseInt(amt,10);
+    if(!(n>=25))return toast('ቢያንስ 25 ብር · minimum is 25 ብር','x');
+    if(n>bal)return toast('በቂ ገንዘብ የለም · not enough balance','x');
+    setBusy(true); const r=await api.withdraw(n).catch(()=>null); setBusy(false);
+    if(r&&r.ok){toast('ጥያቄ ተላከ · request sent — the operator will confirm','check');onClose();refresh();}
+    else toast('አልተሳካም · try again','x');
+  };
+  return <Modal title="ገንዘብ ማውጣት · Withdraw" onClose={onClose}>
+    <div className="text-center">
+      <p className="text-sm text-white/55">ቀሪ ሂሳብ · balance <span className="text-gold-lite font-bold">{fmt(bal)} ብር</span></p>
+      <input type="number" min="25" className="input mt-3 text-center font-display font-bold text-lg"
+        placeholder="መጠን · amount" value={amt} onChange={e=>setAmt(e.target.value)} aria-label="Amount"/>
+      <button className="btn btn-primary w-full mt-3" disabled={busy} onClick={submit}>ጥያቄ ላክ · Request</button>
+      <p className="text-[11px] text-white/35 mt-3">Paid to your Telebirr · reviewed by the operator · min 25 ብር</p>
+    </div>
+  </Modal>;
+}
+
+/* Browser-testing badge — cycles between 6 fake players so you can test
+   cartela exclusivity in two tabs. Never shows inside Telegram. */
+function DevBadge(){
+  const cycle=()=>{
+    const n=(((parseInt(ls.get('kb-dev-n')||'1001',10)-1000)%6)+1001);
+    ls.set('kb-dev-n',String(n)); location.reload();
+  };
+  return <button onClick={cycle}
+    className="fixed bottom-3 right-3 z-50 bg-ink2/95 border border-white/15 rounded-full pl-3 pr-2 py-1.5 text-[10px] font-bold text-white/60 flex items-center gap-1">
+    Browser test · Player #{ls.get('kb-dev-n')||'1001'} <Icon n="chevron" size={10} className="-rotate-90"/>
+  </button>;
+}
+
+/* ================================================================
+   11. APP — routing, Telegram wiring, global poll
+================================================================ */
+function App(){
+  const [screen,setScreen]=useState('home');
+  const [stake,setStake]=useState(10);
+  const [sum,setSum]=useState(null);
+  const [depositOpen,setDepositOpen]=useState(false);
+  const [withdrawOpen,setWithdrawOpen]=useState(false);
+  const [toasts,setToasts]=useState([]);
+  const [sound,setSound]=useState(()=>ls.get('kb-snd')!=='off');
+  const isTg=!!(TG()&&TG().initData);
+
+  useEffect(()=>{ const tg=TG(); if(!tg)return;
+    try{tg.ready();tg.expand();tg.setHeaderColor('#1E1B4B');tg.setBackgroundColor('#1E1B4B');}catch(e){} },[]);
+  useEffect(()=>{ Sfx.on=sound; ls.set('kb-snd',sound?'on':'off'); },[sound]);
+  useEffect(()=>{ const un=()=>Sfx.resume();
+    window.addEventListener('pointerdown',un,{once:true}); return()=>window.removeEventListener('pointerdown',un); },[]);
+
+  /* Telegram BackButton ↔ in-app screens */
+  useEffect(()=>{ const tg=TG(); if(!tg||!tg.onEvent)return;
+    const h=()=>setScreen(s=>s==='game'?'pick':s==='pick'?'home':'home');
+    tg.onEvent('backButtonClicked',h);
+    return()=>tg.offEvent('backButtonClicked',h);
+  },[]);
+  useEffect(()=>{ const tg=TG(); if(!tg||!tg.BackButton)return;
+    try{screen==='home'?tg.BackButton.hide():tg.BackButton.show();}catch(e){} },[screen]);
+
+  /* global state poll (balance, both halls, recent winners) */
+  const refresh=useCallback(async()=>{ try{const s=await api.summary(); if(s.ok)setSum(s);}catch(e){} },[]);
+  useEffect(()=>{ refresh(); const t=setInterval(refresh,3000); return()=>clearInterval(t); },[]);
+
+  const toast=useCallback((msg,icon='check')=>{ const id=Date.now()+Math.random();
+    setToasts(t=>[...t.slice(-2),{id,msg,icon}]);
+    setTimeout(()=>setToasts(t=>t.filter(x=>x.id!==id)),3400); },[]);
+
+  const ctx={sum,refresh,toast,sound,toggleSound:()=>setSound(s=>!s),isTg,go:setScreen,
+    setStakeAndPick:st=>{setStake(st);setScreen('pick');},
+    openDeposit:()=>setDepositOpen(true),openWithdraw:()=>setWithdrawOpen(true)};
+
+  return <AppCtx.Provider value={ctx}>
+    <main className={'max-w-md mx-auto min-h-screen px-3 '+(screen==='home'?'pb-10':'pb-10')}>
+      {screen==='home'&&<HomeScreen/>}
+      {screen==='pick'&&<PickScreen key={stake+'p'} stake={stake}/>}
+      {screen==='game'&&<GameScreen key={stake+'g'} stake={stake}/>}
+    </main>
+    {depositOpen&&<DepositModal onClose={()=>setDepositOpen(false)}/>}
+    {withdrawOpen&&<WithdrawModal onClose={()=>setWithdrawOpen(false)}/>}
+    <Toasts toasts={toasts}/>
+    {!isTg&&<DevBadge/>}
+  </AppCtx.Provider>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+  </html>
