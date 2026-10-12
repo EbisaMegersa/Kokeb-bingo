@@ -1,14 +1,16 @@
 name = "kokab-bingo"
 main = "worker.js"
-compatibility_date = "2024-11-01"
+compatibility_date = "2025-01-01"
+workers_dev = true
 
-# Everything that is not /api/* is served straight from ./public
+# Serve the game (public/index.html) as static files, send /api/* to the worker
 [assets]
 directory = "./public"
 binding = "ASSETS"
 run_worker_first = ["/api/*"]
 not_found_handling = "single-page-application"
 
+# The game's engines — REQUIRED for worker.js to deploy and run
 [durable_objects]
 bindings = [
   { name = "BANK", class_name = "Bank" },
@@ -19,14 +21,14 @@ bindings = [
 tag = "v1"
 new_sqlite_classes = ["Bank", "BingoHall"]
 
+# Public settings (secrets like TELEGRAM_BOT_TOKEN are set in the dashboard, not here)
 [vars]
-# "true" = free demo top-ups + browser testing (no Telegram login needed)
-# SET TO "false" BEFORE TAKING REAL MONEY
-DEMO_MODE = "true"
-# Changing this "prints a new book" of 400 cartelas — keep it in sync with
-# the CARTELA_SEED constant in public/index.html
-CARTELA_SEED = "kokab-2025-s1"
+DEMO_MODE = "true"              # set to "false" before taking real players
+CARTELA_SEED = "kokab-2025-s1"  # must match the seed inside index.html
 
-# Secrets (set with `wrangler secret put …`):
-#   TELEGRAM_BOT_TOKEN  — from @BotFather, enables real initData verification
-#   ADMIN_KEY          — password for the withdrawal admin endpoints
+# Your D1 database — the game doesn't use it, so it's switched off here.
+# It's not deleted; it just isn't part of this app.
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "tanvexo0-db"
+# database_id = "d466cf79-3630-410d-9989-81bf1550f55a"
