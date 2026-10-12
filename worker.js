@@ -6,15 +6,13 @@
 //  · cartelas are generated HERE (deterministic per seed) and wins verified HERE
 //  · the moment a drawn ball completes a cartela, the pot is paid HERE
 
-export { Bank, BingoHall };
-
 /* ---------- tunables ---------- */
-const CARTELAS     = 400;     // cartela pool per table per round
-const START_MS     = 45_000; // sales window after the first cartela is claimed
-const DRAW_MS      = 3500;    // time between ball calls
-const RESULTS_MS   = 12_000;  // winner showcase before the next round
-const MAX_PER_USER = 1;       // cartelas per player per round
-const RAKE_PCT     = 0;       // % of pot kept by the house (0 = winner takes all)
+const CARTELAS     = 400;      // cartela pool per table per round
+const START_MS     = 45_000;   // sales window after the first cartela is claimed
+const DRAW_MS      = 3500;     // time between ball calls
+const RESULTS_MS   = 12_000;   // winner showcase before the next round
+const MAX_PER_USER = 1;        // cartelas per player per round
+const RAKE_PCT     = 0;        // % of pot kept by the house (0 = winner takes all)
 
 const J=(o,st=200)=>new Response(JSON.stringify(o),
   {status:st,headers:{'content-type':'application/json','cache-control':'no-store'}});
@@ -102,7 +100,8 @@ export class BingoHall{
     const g=this.g;
     g.stake=b.stake;
     if(g.phase==='playing'||g.phase==='ended')return J({ok:0,error:'SALES_CLOSED'});
-    if(Object.values(g.claims).some(c=>c.userId===b.userId))return J({ok:0,error:'ALREADY_IN'});
+    if(Object.values(g.claims).filter(c=>c.userId===b.userId).length>=MAX_PER_USER)
+      return J({ok:0,error:'ALREADY_IN'});
     let no=b.cartela==='auto'?0:(b.cartela|0);
     if(no===0){ const free=[];
       for(let i=1;i<=CARTELAS;i++)if(!g.claims[i])free.push(i);
@@ -271,4 +270,4 @@ async function verifyInitData(initData,botToken){
     const sig=await crypto.subtle.sign('HMAC',secret,te.encode(dcs));
     return [...new Uint8Array(sig)].map(b=>b.toString(16).padStart(2,'0')).join('')===hash;
   }catch(e){return false;}
-      }
+}
