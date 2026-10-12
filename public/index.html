@@ -123,15 +123,23 @@ const COLS=[
 ];
 const colOf=n=>Math.floor((n-1)/15);
 const fmt=n=>(n||0).toLocaleString('en-US');
-/* Speak the call if the device actually has an Amharic voice (most don't —
-   the big visual call is the primary channel; bundle recorded clips later if
-   you want guaranteed voice). */
+/* Amharic TTS — voices load async on many devices, so we cache them and
+   refresh on the voiceschanged event. If the device has no Amharic voice,
+   we simply stay silent: the big visual call is the primary channel. */
+let AM_VOICES=[];
+try{
+  if('speechSynthesis' in window){
+    const upd=()=>{AM_VOICES=speechSynthesis.getVoices()
+      .filter(v=>(v.lang||'').toLowerCase().startsWith('am'));};
+    upd(); speechSynthesis.onvoiceschanged=upd;
+  }
+}catch(e){}
 function speakAm(text){
   try{
-    if(!('speechSynthesis' in window))return;
-    if(!speechSynthesis.getVoices().some(v=>(v.lang||'').toLowerCase().startsWith('am')))return;
-    const u=new SpeechSynthesisUtterance(text);u.lang='am-ET';u.rate=.95;
-    speechSynthesis.cancel();speechSynthesis.speak(u);
+    if(!AM_VOICES.length)return;
+    const u=new SpeechSynthesisUtterance(text);
+    u.lang='am-ET'; u.rate=.95; u.voice=AM_VOICES[0];
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
   }catch(e){}
 }
 
@@ -166,7 +174,6 @@ const Sfx=(()=>{
       tone(1318.5,null,.5,'sine',.09,.52);noise(.4,.05,3200,.52);},
   };
 })();
-useEffect_dummy:; // (noop — keeps babel happy about top-level keyword ordering)
 
 /* ================================================================
    4. TELEGRAM helpers + API layer
@@ -333,7 +340,7 @@ function Toasts({toasts}){
 }
 
 /* ================================================================
-   7. GAME MOLECULES — cartela card, caller, board, mini preview
+   7. GAME MOLECULES — cartela card, caller panel, mini preview
 ================================================================ */
 function Cartela({card,daubs,calledSet,winSet,onDaub,playing,shake}){
   return <div className="panel p-2.5 sm:p-3">
@@ -364,20 +371,6 @@ function MiniCard({card}){
       <div key={i} className="w-[18px] h-[18px] rounded-[4px] grid place-items-center text-ink text-[8px] font-bold" style={{opacity:.85}}>{n}</div>)}
   </div>;
 }
-function Caller({hall}){
-  const draws=hall?hall.draws:[];
-  const cur=draws[draws.length-1],prev=draws.slice(-5,-1).reverse();
-  return <section className="panel p-3">
-    <div className="flex items-center gap-3">
-      <Machine size={88} spinning={hall&&hall.phase==='playing'}/>
-      <div className="flex-1 text-center min-w-0">
-        {cur!=null?< <span/>:
-          null}
-      </div>
-    </div>
-  </section>;
-}
-/* The caller panel (written as its own proper component — see CallerPanel) */
 function CallerPanel({hall}){
   const draws=hall?hall.draws:[];
   const cur=draws[draws.length-1],prev=draws.slice(-5,-1).reverse();
@@ -654,7 +647,7 @@ function PickScreen({stake}){
       <div className="grid grid-cols-8 gap-1.5" role="group" aria-label="ካርቴላ ምረጥ · choose your cartela">
         {Array.from({length:400},(_,i)=>i+1).map(n=>{
           const t=taken.has(n);
-          return <button key={n} disabled={t||busy} onClick={()=>{setSel(n);hap('selection')&&0;hap('light');}}
+          return <button key={n} disabled={t||busy} onClick={()=>{setSel(n);hap('light');}}
             className={'aspect-square rounded-lg grid place-items-center font-display font-bold text-[13px] relative transition-all '
               +(t?'bg-white/[0.04] text-white/25':'bg-white/[0.08] text-white/85 hover:bg-white/[0.14] active:scale-95')
               +(sel===n&&!t?' ring-2 ring-gold':'')}
@@ -741,7 +734,6 @@ function GameScreen({stake}){
   const card=hall&&hall.my?hall.my.card:null;
   const calledSet=useMemo(()=>new Set(hall?hall.draws:[]),[hall]);
   const phase=hall?hall.phase:'lobby';
-  const cur=hall&&hall.draws.length?hall.draws[hall.draws.length-1]:null;
   const iWon=hall&&hall.winner&&hall.winner.round===hall.round&&hall.winner.winners.some(w=>w.userId===myId());
 
   /* fresh card state whenever a new round or new cartela begins */
@@ -955,7 +947,7 @@ function App(){
     openDeposit:()=>setDepositOpen(true),openWithdraw:()=>setWithdrawOpen(true)};
 
   return <AppCtx.Provider value={ctx}>
-    <main className={'max-w-md mx-auto min-h-screen px-3 '+(screen==='home'?'pb-10':'pb-10')}>
+    <main className="max-w-md mx-auto min-h-screen px-3 pb-10">
       {screen==='home'&&<HomeScreen/>}
       {screen==='pick'&&<PickScreen key={stake+'p'} stake={stake}/>}
       {screen==='game'&&<GameScreen key={stake+'g'} stake={stake}/>}
@@ -969,4 +961,4 @@ function App(){
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
 </body>
-  </html>
+</html>
