@@ -1,0 +1,32 @@
+name = "kokab-bingo"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+# Everything that is not /api/* is served straight from ./public
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/api/*"]
+not_found_handling = "single-page-application"
+
+[durable_objects]
+bindings = [
+  { name = "BANK", class_name = "Bank" },
+  { name = "HALL", class_name = "BingoHall" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Bank", "BingoHall"]
+
+[vars]
+# "true" = free demo top-ups + browser testing (no Telegram login needed)
+# SET TO "false" BEFORE TAKING REAL MONEY
+DEMO_MODE = "true"
+# Changing this "prints a new book" of 400 cartelas — keep it in sync with
+# the CARTELA_SEED constant in public/index.html
+CARTELA_SEED = "kokab-2025-s1"
+
+# Secrets (set with `wrangler secret put …`):
+#   TELEGRAM_BOT_TOKEN  — from @BotFather, enables real initData verification
+#   ADMIN_KEY          — password for the withdrawal admin endpoints
