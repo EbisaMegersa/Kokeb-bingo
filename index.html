@@ -91,7 +91,6 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;touch-
 .call .t{font-family:var(--disp);font-size:14px;letter-spacing:.04em;display:inline-flex;align-items:center}
 .call .s{font-size:10px;font-weight:600;letter-spacing:.14em;color:var(--ink)}
 .call.done{background:rgba(246,239,221,.1);color:var(--cream);box-shadow:none;border:1px solid rgba(246,239,221,.22)}
-.call[disabled]{opacity:.5}
 .claim{flex:1;min-height:54px;border-radius:14px;background:var(--red);color:var(--cream);display:flex;align-items:center;justify-content:center;gap:9px;box-shadow:0 4px 0 #8F2C18,0 10px 16px rgba(0,0,0,.35);animation:claimPulse 1.1s ease-in-out infinite;transition:transform .08s}
 .claim:active{transform:translateY(3px)}
 .claim .ct{font-family:var(--disp);font-size:18px;letter-spacing:.03em}
@@ -121,8 +120,10 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;touch-
 .mcard.sel::after{content:"";position:absolute;inset:-2.5px;border-radius:inherit;pointer-events:none;box-shadow:0 0 0 3px rgba(233,180,76,.35)}
 .mtick{position:absolute;top:-8px;right:-8px;width:24px;height:24px;border-radius:50%;background:var(--brass);color:var(--ink);display:grid;place-items:center;box-shadow:0 3px 7px rgba(0,0,0,.35);opacity:0;transform:scale(.4);transition:.15s cubic-bezier(.3,1.5,.4,1)}
 .mcard.sel .mtick{opacity:1;transform:none}
-.mid{display:flex;justify-content:space-between;font-size:9.5px;font-weight:800;letter-spacing:.14em;color:rgba(16,30,24,.55);margin-bottom:5px}
-.mid .no{font-family:var(--disp);font-size:12px;letter-spacing:.02em;color:var(--ink)}
+.mid{display:flex;justify-content:space-between;align-items:baseline;gap:6px;margin-bottom:5px}
+.mid .no{font-family:var(--disp);font-weight:400;font-size:17px;line-height:1;color:var(--ink);display:inline-flex;align-items:baseline;gap:3px}
+.mid .no em{font-style:normal;font-family:var(--ui);font-weight:800;font-size:8.5px;letter-spacing:.14em;color:rgba(16,30,24,.55)}
+.mid .tag75{font-size:8.5px;font-weight:800;letter-spacing:.14em;color:rgba(16,30,24,.45)}
 .mletters{display:grid;grid-template-columns:repeat(5,1fr);margin-bottom:3px}
 .mletters b{font-family:var(--disp);font-weight:400;font-size:10px;text-align:center}
 .mcells{display:grid;grid-template-columns:repeat(5,1fr);gap:2px}
@@ -170,7 +171,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;touch-
 .view .card:nth-child(even){transform:rotate(.35deg)}
 .card::after{content:"";position:absolute;inset:0;border-radius:inherit;background:var(--grain);background-size:140px;opacity:.06;mix-blend-mode:multiply;pointer-events:none}
 .card-h{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:2px 4px 9px;min-height:24px}
-.card-name{font-size:11px;font-weight:700;letter-spacing:.18em;color:rgba(16,30,24,.55)}
+.card-name{font-size:10px;font-weight:700;letter-spacing:.18em;color:rgba(16,30,24,.55);display:inline-flex;align-items:baseline;gap:6px}
+.card-name b{font-family:var(--disp);font-weight:400;font-size:17px;letter-spacing:.02em;color:var(--ink)}
 .chips{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .chip{display:inline-flex;align-items:center;gap:4px;background:var(--brass);color:var(--ink);font-size:10px;font-weight:700;letter-spacing:.06em;padding:3px 8px;border-radius:999px}
 .bingo-letters{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:6px}
@@ -568,7 +570,7 @@ function playFile(kind,url,vol=1){
       a.onended=()=>done(true);
       a.onplaying=()=>done(true);
       const p=a.play();
-      if(p&&p.catch)p.catch(()=>{done(false)});
+      if(p&&p.catch)p.catch(()=>{});
       curPlay[kind]=a;
       setTimeout(()=>done(true),2500);
     }catch(e){bad[kind]=true;res(false)}
@@ -749,14 +751,16 @@ function miniCartela(cart,i){
   const sec=document.createElement('button');
   sec.className='mcard';sec.style.setProperty('--d',((i%36)*40)+'ms');
   sec.setAttribute('aria-pressed','false');
-  sec.setAttribute('aria-label','Cartela '+cart.n);
-  let h=`<span class="mtick">${ic('check',13)}</span><span class="mid"><span class="no">№ ${cart.n}</span><span>75-BALL</span></span>`;
+  sec.setAttribute('aria-label','Cartela number '+cart.n);
+  let h=`<span class="mtick">${ic('check',13)}</span>`;
+  h+=`<span class="mid"><span class="no"><em>Nº</em>${cart.n}</span><span class="tag75">75-BALL</span></span>`;
   h+='<span class="mletters" aria-hidden="true">'+'BINGO'.split('').map((L,j)=>`<b style="color:${LETCLR[j]}">${L}</b>`).join('')+'</span>';
   h+='<span class="mcells">';
   cart.grid.forEach(row=>row.forEach(n=>{
     h+=n==='F'?`<span class="mc f">${ic('star',11)}</span>`:`<span class="mc">${n}</span>`;
   }));
   h+='</span>';
+  sec.innerHTML=h; /* <-- the fix: markup must actually be injected */
   return sec;
 }
 
@@ -921,7 +925,7 @@ function buildCards(carts){
     c.grid.forEach(row=>row.forEach(n=>{if(n!=='F')card.nums.add(n)}));
     const sec=document.createElement('section');
     sec.className='card deal';sec.dataset.card=i;sec.style.setProperty('--d',(i*90)+'ms');
-    let h=`<header class="card-h"><span class="card-name">CARTELA №${c.n}</span><span class="chips"></span></header>
+    let h=`<header class="card-h"><span class="card-name">CARTELA <b>Nº ${c.n}</b></span><span class="chips"></span></header>
       <div class="bingo-letters" aria-hidden="true">${'BINGO'.split('').map((L,j)=>`<b style="color:${LETCLR[j]}">${L}</b>`).join('')}</div><div class="grid75">`;
     for(let r=0;r<5;r++)for(let col=0;col<5;col++){
       const n=c.grid[r][col];
@@ -1025,7 +1029,7 @@ function markWon(c){
 let celeT=null;
 function celebrate(c,amt){
   celeTitle.textContent=STAGES[c.key].title;
-  celeSub.textContent=`+${amt} ETB · CARTELA №${c.card.id} · CALL ${callCount}`;
+  celeSub.textContent=`+${amt} ETB · CARTELA Nº${c.card.id} · CALL ${callCount}`;
   cele.classList.remove('out');cele.hidden=false;
   if(!RM)confetti();
   clearTimeout(celeT);celeT=setTimeout(hideCele,2100);
